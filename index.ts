@@ -10,7 +10,7 @@ async function main() {
   console.log('Starting Postgresql Client..');
   pgDatabaseClient.connect();
 
-  await seeder(50)
+  await seeder(500000)
 
   console.log('Stopping DBs..');
   mongoose.disconnect()
