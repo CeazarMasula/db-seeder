@@ -1,28 +1,38 @@
-import mongoModel from "../models/mongo-model";
+import mongoMemberModel from "../models/mongo-member-model";
+import mongoTeamModel from "../models/mongo-team-model";
 import chance from "./chance";
 import pgDatabaseClient from "./pg-database-client";
 import format from 'pg-format';
 import R from 'ramda';
 
-async function seedMongo(documents: Record<string, any>[]) {
-  await mongoModel.insertMany(documents);
-}
-
-async function seedPG(documents: Record<string, any>[]) {
+async function insertPGMembers(documents: Record<string, any>[]) {
   const values = documents.map(document => Object.keys(document)
     .map(function(key) {
         return document[key];
     }));
 
+  const sql = format(`INSERT INTO "Members" ("firstName", "lastName", "age", "gender", "birthdate", "country", "teamNumber") 
+    VALUES %L`, values);
 
-  const sql = format(`INSERT INTO "Members" ("firstName", "lastName", "age", "gender", "birthdate") 
+  await pgDatabaseClient.query(sql)
+}
+
+async function insertPGTeams(documents: Record<string, any>[]) {
+  const values = documents.map(document => Object.keys(document)
+    .map(function(key) {
+        return document[key];
+    }));
+
+  const sql = format(`INSERT INTO "Teams" ("id", "name") 
     VALUES %L`, values);
 
   await pgDatabaseClient.query(sql)
 }
 
 export default async function (records: number) {
-  let documents = [];
+  let memberDocuments = [];
+  let teamDocuments = [];
+
   const batchSize = 5_000;
   let i = 1;
   let startIndex = 0;
@@ -42,25 +52,45 @@ export default async function (records: number) {
     throw new Error('Records must be greater than 0')
   }
 
+  // Limit max number of teams to 100 
+  const maxTeamCount = records / 2 < 50 ? records / 2 : 50;
+  const teamCount = chance.integer({ min: 1, max: maxTeamCount });
+
+  const teamIds = chance.unique(chance.integer, teamCount, { min: 0, max: 50 });
+  const teamNames = chance.unique(chance.animal, teamCount);
+
+  for (let i = 0; i < teamCount; i++) {
+    teamDocuments.push({
+      id: teamIds[i],
+      name: teamNames[i]
+    })
+  }
+
   for (let i = 0; i < records; i++) {
     const name = chance.name().split(' ');
-    documents.push({
+    memberDocuments.push({
       firstName: name[0],
       lastName: name[1],
       age: chance.age(),
       gender: chance.gender(),
-      birthdate: new Date(chance.birthday())
+      birthdate: new Date(chance.birthday()),
+      country: chance.country({ full: true }),
+      teamNumber: chance.pickone(teamIds)
     })
   }
 
-  await mongoModel.deleteMany({});
-  await pgDatabaseClient.query(`DELETE FROM "Members"`)
+  await mongoMemberModel.deleteMany({});
+  await mongoTeamModel.deleteMany({});
+  await pgDatabaseClient.query(`DELETE FROM "Members"; DELETE FROM "Teams"`)
 
-  if (documents.length > batchSize) {
-    while (documents.length >= batchSize * i) {
-      await seedMongo(R.slice(startIndex, endIndex, documents));
-      await seedPG(R.slice(startIndex, endIndex, documents))
-      const currentProgress = (endIndex / documents.length) * 100;
+  await mongoTeamModel.insertMany(teamDocuments);
+  await insertPGTeams(teamDocuments);
+
+  if (memberDocuments.length > batchSize) {
+    while (memberDocuments.length >= batchSize * i) {
+      await mongoMemberModel.insertMany(R.slice(startIndex, endIndex, memberDocuments));
+      await insertPGMembers(R.slice(startIndex, endIndex, memberDocuments))
+      const currentProgress = (endIndex / memberDocuments.length) * 100;
 
       progress = Math.round(currentProgress * 100) / 100
 
@@ -69,8 +99,8 @@ export default async function (records: number) {
       i++;
     }
   } else {
-    await seedMongo(documents);
-    await seedPG(documents)
+    await mongoMemberModel.insertMany(memberDocuments);
+    await insertPGMembers(memberDocuments)
     progress = 100;
   }
 

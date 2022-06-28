@@ -5,5 +5,12 @@ CREATE TABLE IF NOT EXISTS "Members" (
   "lastName" VARCHAR(100),
   "age" int8,
   "gender" VARCHAR(10),
-  "birthdate" timestamp(6)
+  "birthdate" timestamp(6),
+  "country" VARCHAR(100),
+  "teamNumber" int8
+);
+
+CREATE TABLE IF NOT EXISTS "Teams" (
+  "id" int8 PRIMARY KEY,
+  "name" VARCHAR(100)
 );

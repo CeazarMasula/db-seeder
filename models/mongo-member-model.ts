@@ -5,7 +5,9 @@ type MembersDocument = Document & {
   lastName: string,
   age: number,
   gender: string,
-  birthdate: Date
+  birthdate: Date,
+  country: string,
+  teamNumber: string
 }
 
 const memberSchema: Schema = new Schema({
@@ -27,6 +29,14 @@ const memberSchema: Schema = new Schema({
   },
   birthdate: {
     type: Date,
+    required: true,
+  },
+  country: {
+    type: String,
+    required: true,
+  },
+  teamNumber: {
+    type: String,
     required: true,
   }
 })
